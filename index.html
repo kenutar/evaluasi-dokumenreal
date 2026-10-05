@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pembuat Prompt Evaluasi</title>
+<style>
+:root{--bg:#f2f5f7;--card:#fff;--ink:#14283c;--mute:#5b6b7a;--line:#d3dce3;--acc:#0f6e63;--accfg:#fff;--chip:#e3f0ee;--warn:#9a5b00;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1a24;--card:#16262f;--ink:#e6edf2;--mute:#97a8b5;--line:#2b3f4b;--acc:#4cc2b0;--accfg:#06241f;--chip:#1c3a39;--warn:#e0a85a}}
+:root[data-theme="dark"]{--bg:#0e1a24;--card:#16262f;--ink:#e6edf2;--mute:#97a8b5;--line:#2b3f4b;--acc:#4cc2b0;--accfg:#06241f;--chip:#1c3a39;--warn:#e0a85a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.4rem;line-height:1.25;margin:0 0 6px}
+.sub{color:var(--mute);margin:0 0 20px;font-size:.95rem}
+section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+h2{font-size:1rem;margin:0 0 2px}
+.hint{color:var(--mute);font-size:.88rem;margin:0 0 12px}
+.pick{display:block;border:1.5px dashed var(--line);border-radius:10px;padding:12px;text-align:center;cursor:pointer;color:var(--acc);font-weight:600}
+.pick:focus-within{outline:2px solid var(--acc);outline-offset:2px}
+.pick input{position:absolute;opacity:0;width:1px;height:1px}
+.file{display:flex;gap:8px;align-items:center;background:var(--chip);border-radius:8px;padding:8px 10px;margin-top:8px}
+.file .n{flex:1;min-width:0;word-break:break-all;font-size:.9rem}
+.file select{max-width:48%}
+.file button{border:0;background:none;color:var(--mute);font-size:1.3rem;line-height:1;cursor:pointer;padding:4px 6px}
+select,input[type=text],textarea{font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.file select{font-size:.85rem;padding:6px;border-radius:6px}
+select.full,input[type=text],textarea{width:100%}
+label.t{display:block;font-size:.88rem;font-weight:600;margin:12px 0 4px}
+textarea{min-height:80px;resize:vertical}
+.chk{display:flex;gap:10px;align-items:flex-start;margin-top:10px;font-size:.92rem}
+.chk input{margin-top:5px}
+#out{min-height:380px;font-size:.85rem;line-height:1.45}
+.btn{width:100%;padding:13px;border:0;border-radius:10px;background:var(--acc);color:var(--accfg);font:inherit;font-weight:700;cursor:pointer;margin-top:10px}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.warn{color:var(--warn);font-size:.88rem;margin:8px 0 0}
+.note{color:var(--mute);font-size:.82rem;margin-top:10px}
+</style>
+</head>
+<body>
+<main>
+<h1>Pembuat Prompt Evaluasi</h1>
+<p class="sub">Untuk semua jenis evaluasi: pilih jenis, pilih file, lalu salin prompt ke Claude dan lampirkan file yang sama. Aplikasi hanya membaca nama file; isi file tidak dibuka atau dikirim ke mana pun.</p>
+
+<section>
+<h2>1. File template</h2>
+<p class="hint">Contoh hasil evaluasi yang bentuk dan naratifnya dipertahankan.</p>
+<label class="pick">Pilih file template<input type="file" id="f-tpl" accept=".docx,.doc,.pdf"></label>
+<div id="l-tpl"></div>
+</section>
+
+<section>
+<h2>2. File konteks / data isi</h2>
+<p class="hint">Maksimal 3 file. Tentukan peran tiap file agar prompt menyebut sumber isi dengan tepat.</p>
+<label class="pick">Tambah file konteks<input type="file" id="f-ctx" multiple accept=".docx,.doc,.pdf,.xlsx,.csv,.txt"></label>
+<div id="l-ctx"></div>
+<p class="warn" id="w-ctx" hidden>Maksimal 3 file, kelebihannya diabaikan.</p>
+</section>
+
+<section>
+<h2>3. File data surat referensi</h2>
+<p class="hint">Berisi nomor, tanggal, dan perihal surat yang dipakai sebagai narasi. Boleh dikosongkan.</p>
+<label class="pick">Pilih file referensi<input type="file" id="f-ref" multiple accept=".docx,.doc,.pdf,.xlsx,.csv,.txt"></label>
+<div id="l-ref"></div>
+</section>
+
+<section>
+<h2>Prompt singkat berdasarkan file</h2>
+<p class="hint">Hanya memakai file di atas, tanpa isian lain. Lebih presisi karena nama dan peran tiap file disebut.</p>
+<textarea id="out0" readonly aria-label="Prompt singkat berdasarkan file" style="min-height:300px;font-size:.85rem;line-height:1.45"></textarea>
+<button class="btn" id="cp1" type="button">Salin prompt singkat berdasarkan file</button>
+<p class="note" id="st1" role="status"></p>
+</section>
+
+<section>
+<h2>4. Jenis evaluasi</h2>
+<p class="hint">Untuk prompt lengkap. Jenis yang dipilih mengisi panduan khusus di langkah 5, dan panduan itu bisa Bapak ubah.</p>
+<select class="full" id="jenis" aria-label="Jenis evaluasi"></select>
+<div id="cwrap" hidden><label class="t" for="cname">Nama jenis evaluasi</label><input type="text" id="cname" placeholder="mis. Evaluasi Rencana Reklamasi"></div>
+</section>
+
+<section>
+<h2>5. Panduan dan detail</h2>
+<label class="t" for="gd">Panduan khusus jenis evaluasi ini</label>
+<textarea id="gd" style="min-height:130px"></textarea>
+<label class="t" for="co">Nama perusahaan</label>
+<input type="text" id="co" placeholder="PT ...">
+<label class="t" for="tg">Tanggal dokumen (evaluasi/surat)</label>
+<input type="text" id="tg" placeholder="mis. 5 Oktober 2026">
+<label class="t" for="pj">Evaluator / penandatangan</label>
+<input type="text" id="pj" placeholder="nama dan jabatan, jika perlu diganti">
+<label class="t" for="cat">Catatan lain</label>
+<textarea id="cat"></textarea>
+<label class="chk"><input type="checkbox" id="k1" checked><span>Laporkan ketidaksesuaian dan data yang belum lengkap di luar dokumen</span></label>
+<label class="chk"><input type="checkbox" id="k2"><span>Tandai isian yang datanya tidak ditemukan dengan [perlu konfirmasi] di dalam dokumen</span></label>
+</section>
+
+<section>
+<h2>Prompt lengkap</h2>
+<p class="hint">Lampirkan semua file di atas saat mengirim prompt ini.</p>
+<textarea id="out" readonly aria-label="Hasil prompt"></textarea>
+<button class="btn" id="cp" type="button">Salin prompt</button>
+<p class="note" id="st" role="status"></p>
+</section>
+</main>
+<script>
+(function(){
+var MAX=3;
+var ROLES=["Data yang dievaluasi","Dasar/kriteria penilaian","Temuan/BA sebelumnya","Jawaban perusahaan (TLHP)","Data pendukung lain"];
+var JENIS=[
+ {k:"binwas",n:"Surat Tanggapan Pembinaan & Pengawasan (Binwas)",g:"Pada tabel lampiran, kolom tindakan koreksi/pencegahan diisi temuan dan rekomendasi dari BA; kolom perbaikan dan keterangan diisi dari jawaban/TLHP perusahaan beserta bukti yang dilampirkan; kolom penilaian (Memadai/Belum memadai) diisi sebagai usulan berdasarkan bukti. Butir yang belum dijawab perusahaan ditulis apa adanya."},
+ {k:"kim",n:"Evaluasi Permohonan Kartu Izin Meledakkan (KIM)",g:"Setiap butir uraian dinilai Sesuai/Tidak sesuai berdasarkan berkas permohonan, dengan keterangan yang menyebut nomor dan tanggal dokumen sumber. Simpulkan Hasil Evaluasi akhir (Dilanjutkan/Ditolak) beserta daftar kekurangan yang harus dilengkapi perusahaan."},
+ {k:"ktt",n:"Evaluasi Permohonan Pengesahan Kepala Teknik Tambang (KTT)",g:"Isi form kelengkapan administrasi dari berkas permohonan. Surat pengantar memuat pertimbangan dasar hukum dan kesimpulan (dapat/belum dapat diproses) mengikuti pola naratif template. Pastikan nama perusahaan, calon KTT, nomor, dan kelas KTT konsisten di surat dan form."},
+ {k:"gh",n:"Evaluasi Pemeriksaan Mandiri Gudang Bahan Peledak",g:"Isi hasil pemeriksaan, hasil pengukuran, dan bukti pemeriksaan per butir dari laporan pemeriksaan mandiri perusahaan. Pilihan yang tidak berlaku dicoret mengikuti pola template. Butir yang tidak sesuai dicatat sebagai rekomendasi di Berita Acara."},
+ {k:"lain",n:"Lainnya (isi sendiri)",g:""}
+];
+var S={tpl:null,ctx:[],ref:[]};
+var $=function(i){return document.getElementById(i)};
+
+JENIS.forEach(function(j,i){var o=document.createElement("option");o.value=i;o.textContent=j.n;$("jenis").appendChild(o)});
+function setGuide(){$("gd").value=JENIS[+$("jenis").value].g;$("cwrap").hidden=JENIS[+$("jenis").value].k!=="lain";build()}
+$("jenis").onchange=setGuide;
+
+function row(name,onDel,sel){
+  var d=document.createElement("div");d.className="file";
+  var n=document.createElement("span");n.className="n";n.textContent=name;d.appendChild(n);
+  if(sel)d.appendChild(sel);
+  var b=document.createElement("button");b.type="button";b.textContent="\u00d7";b.setAttribute("aria-label","Hapus "+name);b.onclick=onDel;d.appendChild(b);
+  return d;
+}
+function render(){
+  var t=$("l-tpl");t.textContent="";
+  if(S.tpl)t.appendChild(row(S.tpl,function(){S.tpl=null;render()}));
+  var c=$("l-ctx");c.textContent="";
+  S.ctx.forEach(function(f,i){
+    var s=document.createElement("select");s.setAttribute("aria-label","Peran "+f.name);
+    ROLES.forEach(function(r,k){var o=document.createElement("option");o.value=k;o.textContent=r;if(k===f.role)o.selected=true;s.appendChild(o)});
+    s.onchange=function(){f.role=+s.value;build()};
+    c.appendChild(row(f.name,function(){S.ctx.splice(i,1);render()},s));
+  });
+  var r=$("l-ref");r.textContent="";
+  S.ref.forEach(function(n,i){r.appendChild(row(n,function(){S.ref.splice(i,1);render()}))});
+  build();
+}
+function guess(n){
+  n=n.toLowerCase();
+  if(/\bba\b|berita[ _-]?acara|ba_/.test(n))return 2;
+  if(/tlhp|jawab|tindak[ _-]?lanjut/.test(n))return 3;
+  if(/regulasi|kepmen|permen|peraturan|kriteria|checklist/.test(n))return 1;
+  return 0;
+}
+$("f-tpl").onchange=function(e){var f=e.target.files[0];if(f){S.tpl=f.name;render()}e.target.value=""};
+$("f-ctx").onchange=function(e){
+  Array.prototype.forEach.call(e.target.files,function(f){
+    if(S.ctx.some(function(x){return x.name===f.name}))return;
+    if(S.ctx.length<MAX)S.ctx.push({name:f.name,role:guess(f.name)});else $("w-ctx").hidden=false;
+  });
+  e.target.value="";render();
+};
+$("f-ref").onchange=function(e){
+  Array.prototype.forEach.call(e.target.files,function(f){if(S.ref.indexOf(f.name)<0)S.ref.push(f.name)});
+  e.target.value="";render();
+};
+["gd","co","tg","pj","cat","cname","k1","k2"].forEach(function(i){$(i).oninput=build;$(i).onchange=build});
+
+function q(n){return "\u201c"+n+"\u201d"}
+function names(role){return S.ctx.filter(function(f){return f.role===role}).map(function(f){return q(f.name)}).join(", ")}
+function short0(){
+  var tpl=S.tpl?q(S.tpl):"[file template belum dipilih]";
+  var all=S.ctx.map(function(f){return q(f.name)+" ("+ROLES[f.role].toLowerCase()+")"});
+  var ctx=all.length?all.join(", "):"[file konteks belum dipilih]";
+  var ref=S.ref.map(q).join(", ");
+  var L=["Buatkan dokumen hasil evaluasi (.docx) dengan template "+tpl+", berdasarkan file "+ctx+(ref?", dan data surat referensi "+ref:"")+".",""];
+  var k=1;
+  L.push((k++)+". Jadikan "+tpl+" sebagai acuan: pertahankan kop, struktur, kolom, urutan butir, font, dan naratif. Ubah hanya data agar sesuai konteks perusahaan dan file yang dilampirkan.");
+  L.push((k++)+". Isi hanya dari data di file "+(S.ctx.length?S.ctx.map(function(f){return q(f.name)}).join(", "):"konteks")+"; jangan mengarang. Isian yang datanya tidak ada dibiarkan kosong.");
+  L.push((k++)+". Pilihan di template (Sesuai/Tidak sesuai, Ada/Tidak ada, dll.) ditandai mengikuti pola template, termasuk mencoret pilihan yang tidak berlaku.");
+  if(ref)L.push((k++)+". Nomor, tanggal, dan perihal surat dari "+ref+" dimasukkan ke narasi surat.");
+  L.push((k++)+". Penilaian dan kesimpulan ditulis sebagai usulan yang beralasan. Nama, nomor, dan tanggal harus konsisten di seluruh dokumen.");
+  L.push("");
+  L.push("Setelah selesai, sebutkan terpisah dari dokumen: ketidaksesuaian data dan hal yang belum lengkap.");
+  $("out0").value=L.join("\n");
+}
+function build(){
+  if(S.ctx.length<MAX)$("w-ctx").hidden=true;
+  var J=JENIS[+$("jenis").value];
+  var jn=J.k==="lain"?($("cname").value.trim()||"evaluasi"):J.n;
+  var tpl=S.tpl?q(S.tpl):"[file template belum dipilih]";
+  var L=[];
+  L.push("Buatkan dokumen hasil \u201c"+jn+"\u201d dalam format Word (.docx) berdasarkan file yang saya lampirkan.");
+  L.push("");
+  L.push("FILE YANG DILAMPIRKAN");
+  L.push("1. Template: "+tpl);
+  var i=2;
+  if(S.ctx.length)S.ctx.forEach(function(f){L.push((i++)+". "+ROLES[f.role]+": "+q(f.name))});
+  else L.push((i++)+". [file konteks belum dipilih]");
+  S.ref.forEach(function(n){L.push((i++)+". Data surat referensi: "+q(n))});
+  L.push("");
+  L.push("KETENTUAN UMUM");
+  var k=1;
+  L.push((k++)+". Jadikan "+tpl+" sebagai template. Pertahankan kop, struktur, urutan butir, kolom tabel, font, dan naratifnya; yang diganti hanya data dan isian agar sesuai konteks perusahaan serta file yang dilampirkan.");
+  var src=[];
+  if(names(0))src.push("Data yang dievaluasi diambil dari "+names(0));
+  if(names(1))src.push("dasar/kriteria penilaian mengacu pada "+names(1));
+  if(names(2))src.push("temuan dan rekomendasi diambil dari "+names(2));
+  if(names(3))src.push("jawaban/perbaikan dan bukti perusahaan diambil dari "+names(3));
+  if(names(4))src.push("data pendukung dari "+names(4));
+  if(src.length)L.push((k++)+". Sumber isi: "+src.join("; ")+".");
+  L.push((k++)+". Isi hanya berdasarkan data pada file yang dilampirkan; jangan mengarang. "+($("k2").checked?"Isian yang datanya tidak ditemukan diberi tanda [perlu konfirmasi].":"Isian yang datanya tidak ditemukan dibiarkan kosong."));
+  L.push((k++)+". Jika template memuat pilihan (mis. Sesuai/Tidak sesuai, Ada/Tidak ada), ikuti cara template menandai pilihan tersebut, termasuk pencoretan pilihan yang tidak berlaku jika itu pola template.");
+  if(S.ref.length)L.push((k++)+". Ambil nomor, tanggal, dan perihal surat dari "+S.ref.map(q).join(", ")+", lalu masukkan sebagai narasi di surat (mis. paragraf pembuka \u201cSehubungan dengan surat\u2026\u201d, serta bagian Hal/Lampiran).");
+  L.push((k++)+". Pastikan nama perusahaan, nama orang, nomor, dan tanggal konsisten di seluruh dokumen.");
+  L.push((k++)+". Penilaian dan kesimpulan ditulis sebagai usulan yang beralasan dari data, bukan keputusan final.");
+  var gd=$("gd").value.trim();
+  if(gd){L.push("");L.push("KETENTUAN KHUSUS");L.push(gd)}
+  var co=$("co").value.trim(),tg=$("tg").value.trim(),pj=$("pj").value.trim(),cat=$("cat").value.trim(),d=[];
+  if(co)d.push("Perusahaan: "+co);
+  if(tg)d.push("Tanggal dokumen: "+tg);
+  if(pj)d.push("Evaluator/penandatangan: "+pj);
+  if(cat)d.push("Catatan: "+cat);
+  if(d.length){L.push("");L.push("DETAIL");d.forEach(function(x){L.push("- "+x)})}
+  L.push("");
+  L.push("SETELAH SELESAI");
+  L.push($("k1").checked?"Sebutkan ketidaksesuaian atau data yang belum lengkap (mis. nomor tidak cocok, dokumen belum ada, masa berlaku habis) secara terpisah dari dokumen.":"Sampaikan ringkasan singkat isi dokumen yang dibuat.");
+  $("out").value=L.join("\n");
+  short0();
+}
+function wire(btn,src,stat){
+  $(btn).onclick=function(){
+    var o=$(src),st=$(stat);
+    function ok(){st.textContent="Prompt tersalin."}
+    function fb(){o.removeAttribute("readonly");o.select();o.setSelectionRange(0,99999);try{document.execCommand("copy");ok()}catch(e){st.textContent="Salin manual: tekan lama pada teks prompt."}o.setAttribute("readonly","")}
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(o.value).then(ok,fb)}else fb();
+  };
+}
+wire("cp","out","st");wire("cp1","out0","st1");
+setGuide();render();
+})();
+</script>
+</body>
+</html>
